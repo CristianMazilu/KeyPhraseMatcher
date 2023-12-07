@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
+using System.Collections.Generic;
 
 namespace KeyPhraseMatcher
 {
@@ -9,22 +9,57 @@ namespace KeyPhraseMatcher
     {
         static void Main(string[] args)
         {
+            if (args.Length > 0 && args[0].Equals("generate", StringComparison.OrdinalIgnoreCase))
+            {
+                GenerateFiles();
+            }
+            else
+            {
+                ShowMenu();
+            }
+        }
+
+        private static void ShowMenu()
+        {
+            while (true)
+            {
+                Console.WriteLine("Please select an option:");
+                Console.WriteLine("1. Generate Files");
+                Console.WriteLine("2. Exit");
+                Console.Write("Enter your choice (1-2): ");
+
+                var choice = Console.ReadLine();
+
+                switch (choice)
+                {
+                    case "1":
+                        GenerateFiles();
+                        break;
+                    case "2":
+                        Console.WriteLine("Exiting the program.");
+                        return; // Exits the method, thus ending the program
+                    default:
+                        Console.WriteLine("Invalid choice. Please try again.");
+                        break;
+                }
+            }
+        }
+
+        private static void GenerateFiles()
+        {
             var basePath = "D:\\Projects\\2023.12.06 KeyPhraseMatcher\\KeyPhraseMatcher";
             var phrasesDirectory = Path.Combine(basePath, "Phrases");
             var rawPhrasesDirectory = Path.Combine(phrasesDirectory, "RawPhrases");
-            var aggregatedFileName = "aggregated.txt";
-            var searchesFileName = "searches.txt";
-            var titlesFileName = "titles.txt";
+            var aggregatedFilePath = Path.Combine(phrasesDirectory, "aggregated.txt");
+            var searchesFilePath = Path.Combine(phrasesDirectory, "searches.txt");
+            var titlesFilePath = Path.Combine(phrasesDirectory, "titles.txt");
 
             try
             {
-                var aggregatedFilePath = Path.Combine(phrasesDirectory, aggregatedFileName);
-                AggregatePhrases(GetFilesAsStreams(rawPhrasesDirectory), CreateFileStream(aggregatedFilePath), out int phraseCount);
+                AggregatePhrases(rawPhrasesDirectory, aggregatedFilePath, out int phraseCount);
                 Console.WriteLine($"{phraseCount} phrases found.");
 
-                var searchesFilePath = Path.Combine(phrasesDirectory, searchesFileName);
-                var titlesFilePath = Path.Combine(phrasesDirectory, titlesFileName);
-                SplitPhrasesToSearchesAndTitle(new FileInfo(aggregatedFilePath).OpenRead(), CreateFileStream(searchesFilePath), CreateFileStream(titlesFilePath), 0.3, out int searchesCount, out int titlesCount);
+                SplitPhrasesToSearchesAndTitle(aggregatedFilePath, searchesFilePath, titlesFilePath, 0.3, out int searchesCount, out int titlesCount);
                 Console.WriteLine($"Phrases split into {searchesCount} search phrases and {titlesCount} title phrases.");
             }
             catch (Exception ex)
@@ -33,27 +68,42 @@ namespace KeyPhraseMatcher
             }
         }
 
-        private static Stream CreateFileStream(string filePath)
+        private static void AggregatePhrases(string rawPhrasesDirectory, string aggregatedFilePath, out int phraseCount)
         {
-            return File.Create(filePath);
+            phraseCount = 0;
+            using (var output = File.Create(aggregatedFilePath))
+            using (var writer = new StreamWriter(output))
+            {
+                foreach (var filePath in Directory.EnumerateFiles(rawPhrasesDirectory))
+                {
+                    using (var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                    using (var reader = new StreamReader(fileStream))
+                    {
+                        string line;
+                        while ((line = reader.ReadLine()) != null)
+                        {
+                            writer.WriteLine(line);
+                            phraseCount++;
+                        }
+                    }
+                }
+            }
         }
 
-        private static IEnumerable<Stream> GetFilesAsStreams(string directory)
+        private static void SplitPhrasesToSearchesAndTitle(string inputFilePath, string searchesFilePath, string titlesFilePath, double splitRatio, out int searchesCount, out int titlesCount)
         {
-            return Directory.EnumerateFiles(directory).Select(filePath => new FileStream(filePath, FileMode.Open, FileAccess.Read));
-        }
-
-        private static void SplitPhrasesToSearchesAndTitle(Stream input, Stream searches, Stream titles, double splitRatio, out int searchesCount, out int titlesCount)
-        {
-            var rnd = new Random();
-            string line;
             searchesCount = 0;
             titlesCount = 0;
+            var rnd = new Random();
 
+            using (var input = new FileStream(inputFilePath, FileMode.Open, FileAccess.Read))
             using (var reader = new StreamReader(input))
-            using (var searchesWriter = new StreamWriter(searches))
-            using (var titlesWriter = new StreamWriter(titles))
+            using (var searchesOutput = File.Create(searchesFilePath))
+            using (var searchesWriter = new StreamWriter(searchesOutput))
+            using (var titlesOutput = File.Create(titlesFilePath))
+            using (var titlesWriter = new StreamWriter(titlesOutput))
             {
+                string line;
                 while ((line = reader.ReadLine()) != null)
                 {
                     if (rnd.NextDouble() < splitRatio)
@@ -65,26 +115,6 @@ namespace KeyPhraseMatcher
                     {
                         titlesWriter.WriteLine(line);
                         titlesCount++;
-                    }
-                }
-            }
-        }
-
-        private static void AggregatePhrases(IEnumerable<Stream> input, Stream output, out int phraseCount)
-        {
-            phraseCount = 0;
-            using (var writer = new StreamWriter(output))
-            {
-                foreach (var file in input)
-                {
-                    using (var reader = new StreamReader(file))
-                    {
-                        string line;
-                        while ((line = reader.ReadLine()) != null)
-                        {
-                            writer.WriteLine(line);
-                            phraseCount++;
-                        }
                     }
                 }
             }
