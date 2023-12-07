@@ -1,37 +1,73 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
+using System.Runtime.CompilerServices;
 
-namespace KeyPhraseMatcer
+namespace KeyPhraseMatcher
 {
     class Program
     {
         static void Main(string[] args)
         {
-            var phrasesDirectory = "D:\\Projects\\2023.12.06 KeyPhraseMatcher\\KeyPhraseMatcher\\Phrases";
-            var rawPhrasesDirectory = "D:\\Projects\\2023.12.06 KeyPhraseMatcher\\KeyPhraseMatcher\\Phrases\\RawPhrases";
+            var basePath = "D:\\Projects\\2023.12.06 KeyPhraseMatcher\\KeyPhraseMatcher";
+            var phrasesDirectory = Path.Combine(basePath, "Phrases");
+            var rawPhrasesDirectory = Path.Combine(phrasesDirectory, "RawPhrases");
             var aggregatedFileName = "aggregated.txt";
             var searchesFileName = "searches.txt";
             var titlesFileName = "titles.txt";
 
-            AggregatePhrases(
-                Directory.EnumerateFiles(rawPhrasesDirectory).Select(filePath => new FileInfo(filePath).OpenRead()),
-                File.Create(phrasesDirectory + "\\" + aggregatedFileName),
-                out int phraseCount);
-            Console.WriteLine(phraseCount + " phrases found.");
+            try
+            {
+                var aggregatedFilePath = Path.Combine(phrasesDirectory, aggregatedFileName);
+                AggregatePhrases(GetFilesAsStreams(rawPhrasesDirectory), CreateFileStream(aggregatedFilePath), out int phraseCount);
+                Console.WriteLine($"{phraseCount} phrases found.");
 
-            SplitPhrasesToSearchesAndTitle(
-                new FileInfo(phrasesDirectory + "\\" + aggregatedFileName).OpenRead(),
-                File.Create(phrasesDirectory + "\\" + searchesFileName),
-                File.Create(phrasesDirectory + "\\" + titlesFileName),
-                0.3,
-                out int searchesCount,
-                out int titlesCount);
-            Console.WriteLine(string.Format("Phrases split into {} search phrases and {} title phrases.", searchesCount, titlesCount));
+                var searchesFilePath = Path.Combine(phrasesDirectory, searchesFileName);
+                var titlesFilePath = Path.Combine(phrasesDirectory, titlesFileName);
+                SplitPhrasesToSearchesAndTitle(new FileInfo(aggregatedFilePath).OpenRead(), CreateFileStream(searchesFilePath), CreateFileStream(titlesFilePath), 0.3, out int searchesCount, out int titlesCount);
+                Console.WriteLine($"Phrases split into {searchesCount} search phrases and {titlesCount} title phrases.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred: {ex.Message}");
+            }
         }
 
-        private static void SplitPhrasesToSearchesAndTitle(Stream input, Stream searches, Stream titles, double splitRation, out int searchesCount, out int titlesCount)
+        private static Stream CreateFileStream(string filePath)
         {
-            throw new NotImplementedException();
+            return File.Create(filePath);
+        }
+
+        private static IEnumerable<Stream> GetFilesAsStreams(string directory)
+        {
+            return Directory.EnumerateFiles(directory).Select(filePath => new FileStream(filePath, FileMode.Open, FileAccess.Read));
+        }
+
+        private static void SplitPhrasesToSearchesAndTitle(Stream input, Stream searches, Stream titles, double splitRatio, out int searchesCount, out int titlesCount)
+        {
+            var rnd = new Random();
+            string line;
+            searchesCount = 0;
+            titlesCount = 0;
+
+            using (var reader = new StreamReader(input))
+            using (var searchesWriter = new StreamWriter(searches))
+            using (var titlesWriter = new StreamWriter(titles))
+            {
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if (rnd.NextDouble() < splitRatio)
+                    {
+                        searchesWriter.WriteLine(line);
+                        searchesCount++;
+                    }
+                    else
+                    {
+                        titlesWriter.WriteLine(line);
+                        titlesCount++;
+                    }
+                }
+            }
         }
 
         private static void AggregatePhrases(IEnumerable<Stream> input, Stream output, out int phraseCount)
