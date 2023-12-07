@@ -108,16 +108,39 @@ namespace KeyPhraseMatcher
                 {
                     if (rnd.NextDouble() < splitRatio)
                     {
-                        searchesWriter.WriteLine(line);
-                        searchesCount++;
+                        foreach (var subSearchPhrase in GenerateSubPhrases(line))
+                        {
+                            searchesWriter.WriteLine(subSearchPhrase);
+                            searchesCount++;
+                        }
                     }
                     else
                     {
                         titlesWriter.WriteLine(line);
-                        titlesCount++;
+                        foreach (var subSearchPhrase in GenerateSubPhrases(line))
+                        {
+                            titlesWriter.WriteLine(subSearchPhrase);
+                            titlesCount++;
+                        }
                     }
                 }
             }
+        }
+
+        private static IEnumerable<string> GenerateSubPhrases(string largerSearchPhrase)
+        {
+            var words = largerSearchPhrase.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+            for (int i = 0;  i < (int)(words.Length / 2); i++)
+            {
+                var rnd = new Random();
+                int n = rnd.Next(1, words.Length + 1);
+                string[] selectedWords = Enumerable.Range(0, n)
+                    .Select(j => words[rnd.Next(words.Length)])
+                    .ToArray();
+                yield return string.Join(" ", selectedWords);
+            }
+
         }
     }
 }
