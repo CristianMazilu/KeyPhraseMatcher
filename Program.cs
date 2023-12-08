@@ -2,31 +2,42 @@
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
+using System.Reflection.PortableExecutable;
 
 namespace KeyPhraseMatcher
 {
-    class Program
+    public class Program
     {
-        static void Main(string[] args)
+        private static string basePath = "D:\\Projects\\2023.12.06 KeyPhraseMatcher\\KeyPhraseMatcher";
+        private static string phrasesDirectory = Path.Combine(basePath, "Phrases");
+        private string rawPhrasesDirectory = Path.Combine(phrasesDirectory, "RawPhrases");
+        private string aggregatedFilePath = Path.Combine(phrasesDirectory, "aggregated.txt");
+        private string searchesFilePath = Path.Combine(phrasesDirectory, "searches.txt");
+        private string titlesFilePath = Path.Combine(phrasesDirectory, "titles.txt");
+
+        public static void Main(string[] args)
         {
+            var program = new Program();
+
             if (args.Length > 0 && args[0].Equals("generate", StringComparison.OrdinalIgnoreCase))
             {
-                GenerateFiles();
+                program.GenerateFiles();
             }
             else
             {
-                ShowMenu();
+                program.ShowMenu();
             }
         }
 
-        private static void ShowMenu()
+        public void ShowMenu()
         {
             while (true)
             {
                 Console.WriteLine("Please select an option:");
-                Console.WriteLine("1. Generate Files");
-                Console.WriteLine("2. Exit");
-                Console.Write("Enter your choice (1-2): ");
+                Console.WriteLine("1. Generate files");
+                Console.WriteLine("2. Count matches");
+                Console.WriteLine("3. Exit");
+                Console.Write("Enter your choice (1-3): ");
 
                 var choice = Console.ReadLine();
 
@@ -36,6 +47,10 @@ namespace KeyPhraseMatcher
                         GenerateFiles();
                         break;
                     case "2":
+                        var matchesCount = FindPairs();
+                        Console.WriteLine(string.Format("{0} matches found.", matchesCount));
+                        break;
+                    case "3":
                         Console.WriteLine("Exiting the program.");
                         return; // Exits the method, thus ending the program
                     default:
@@ -45,15 +60,44 @@ namespace KeyPhraseMatcher
             }
         }
 
-        private static void GenerateFiles()
+        public int FindPairs()
         {
-            var basePath = "D:\\Projects\\2023.12.06 KeyPhraseMatcher\\KeyPhraseMatcher";
-            var phrasesDirectory = Path.Combine(basePath, "Phrases");
-            var rawPhrasesDirectory = Path.Combine(phrasesDirectory, "RawPhrases");
-            var aggregatedFilePath = Path.Combine(phrasesDirectory, "aggregated.txt");
-            var searchesFilePath = Path.Combine(phrasesDirectory, "searches.txt");
-            var titlesFilePath = Path.Combine(phrasesDirectory, "titles.txt");
+            int matchesCount = 0;
+            using (var searchesReader = new StreamReader(new FileStream(searchesFilePath, FileMode.Open, FileAccess.Read)))
+            using (var titlesReader = new StreamReader(new FileStream(titlesFilePath, FileMode.Open, FileAccess.Read)))
+            {
+                foreach (var search in GetLines(searchesReader))
+                {
+                    var searchWords = search.Split(' ');
+                    foreach (var title in GetLines(titlesReader))
+                    {
+                        var titleWords = title.Split(' ');
+                        if (TitleContainsSearch(titleWords, searchWords))
+                        {
+                            matchesCount++;
+                        }
+                    }
+                }
+            }
 
+            return matchesCount;
+        }
+
+        public bool TitleContainsSearch(string[] titleWords, string[] searchWords)
+        {
+            foreach (var searchWord in searchWords)
+            {
+                if (!titleWords.Contains(searchWord))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public void GenerateFiles()
+        {
             try
             {
                 AggregatePhrases(rawPhrasesDirectory, aggregatedFilePath, out int phraseCount);
@@ -68,7 +112,7 @@ namespace KeyPhraseMatcher
             }
         }
 
-        private static void AggregatePhrases(string rawPhrasesDirectory, string aggregatedFilePath, out int phraseCount)
+        public static void AggregatePhrases(string rawPhrasesDirectory, string aggregatedFilePath, out int phraseCount)
         {
             phraseCount = 0;
             using (var output = File.Create(aggregatedFilePath))
@@ -90,7 +134,7 @@ namespace KeyPhraseMatcher
             }
         }
 
-        private static void SplitPhrasesToSearchesAndTitle(string inputFilePath, string searchesFilePath, string titlesFilePath, double splitRatio, out int searchesCount, out int titlesCount)
+        public static void SplitPhrasesToSearchesAndTitle(string inputFilePath, string searchesFilePath, string titlesFilePath, double splitRatio, out int searchesCount, out int titlesCount)
         {
             searchesCount = 0;
             titlesCount = 0;
@@ -103,8 +147,7 @@ namespace KeyPhraseMatcher
             using (var titlesOutput = File.Create(titlesFilePath))
             using (var titlesWriter = new StreamWriter(titlesOutput))
             {
-                string line;
-                while ((line = reader.ReadLine()) != null)
+                foreach (var line in GetLines(reader))
                 {
                     if (rnd.NextDouble() < splitRatio)
                     {
@@ -127,7 +170,7 @@ namespace KeyPhraseMatcher
             }
         }
 
-        private static IEnumerable<string> GenerateSubPhrases(string largerSearchPhrase)
+        public static IEnumerable<string> GenerateSubPhrases(string largerSearchPhrase)
         {
             var words = largerSearchPhrase.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
@@ -141,6 +184,15 @@ namespace KeyPhraseMatcher
                 yield return string.Join(" ", selectedWords);
             }
 
+        }
+
+        public static IEnumerable<string> GetLines(StreamReader stream)
+        {
+            string line;
+            while ((line = stream.ReadLine()) != null)
+            {
+                yield return line;
+            }
         }
     }
 }
