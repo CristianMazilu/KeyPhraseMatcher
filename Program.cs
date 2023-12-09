@@ -14,6 +14,8 @@ namespace KeyPhraseMatcher
         private string aggregatedFilePath = Path.Combine(phrasesDirectory, "aggregated.txt");
         private string searchesFilePath = Path.Combine(phrasesDirectory, "searches.txt");
         private string titlesFilePath = Path.Combine(phrasesDirectory, "titles.txt");
+        private int setSearchesCount = 1000000;
+        private int setTitlesCount = 30000000;
 
         public static void Main(string[] args)
         {
@@ -35,11 +37,13 @@ namespace KeyPhraseMatcher
             {
                 Console.WriteLine("Please select an option:");
                 Console.WriteLine("1. Generate files");
-                Console.WriteLine("2. Count matches");
-                Console.WriteLine("3. Exit");
-                Console.Write("Enter your choice (1-3): ");
+                Console.WriteLine("2. Count matches - SLOW");
+                Console.WriteLine("3. Count matches - FAST 1.0");
+                Console.WriteLine("4. Exit");
+                Console.Write("Enter your choice (1-4): ");
 
                 var choice = Console.ReadLine();
+                double matchesCount = 0;
 
                 switch (choice)
                 {
@@ -47,10 +51,14 @@ namespace KeyPhraseMatcher
                         GenerateFiles();
                         break;
                     case "2":
-                        var matchesCount = FindPairs();
+                        matchesCount = FindPairsSlow();
                         Console.WriteLine(string.Format("{0} matches found.", matchesCount));
                         break;
                     case "3":
+                        matchesCount = FindPairsFast();
+                        Console.WriteLine(string.Format("{0} matches found.", matchesCount));
+                        break;
+                    case "4":
                         Console.WriteLine("Exiting the program.");
                         return; // Exits the method, thus ending the program
                     default:
@@ -60,21 +68,39 @@ namespace KeyPhraseMatcher
             }
         }
 
-        public int FindPairs()
+        private double FindPairsFast()
         {
-            int matchesCount = 0;
+            throw new NotImplementedException();
+        }
+
+        public double FindPairsSlow()
+        {
+            double matchesCount = 0;
+
             using (var searchesReader = new StreamReader(new FileStream(searchesFilePath, FileMode.Open, FileAccess.Read)))
-            using (var titlesReader = new StreamReader(new FileStream(titlesFilePath, FileMode.Open, FileAccess.Read)))
             {
-                foreach (var search in GetLines(searchesReader))
+                foreach (var search in Extensions.GetLines(searchesReader))
                 {
-                    var searchWords = search.Split(' ');
-                    foreach (var title in GetLines(titlesReader))
+                    var searchWords = search.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+                    using (var titlesReader = new StreamReader(new FileStream(titlesFilePath, FileMode.Open, FileAccess.Read)))
                     {
-                        var titleWords = title.Split(' ');
-                        if (TitleContainsSearch(titleWords, searchWords))
+                        foreach (var title in Extensions.GetLines(titlesReader))
                         {
-                            matchesCount++;
+                            var titleWords = title.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                            if (TitleContainsSearch(titleWords, searchWords))
+                            {
+                                matchesCount++;
+                                Console.ForegroundColor = ConsoleColor.Green;
+                                Console.WriteLine($"Matching {search,-70} - {title}");
+                                Console.ResetColor();
+                            }
+                            else
+                            {
+                                Console.ForegroundColor = ConsoleColor.Red;
+                                Console.WriteLine($"Matching {search,-70} - {title}");
+                                Console.ResetColor();
+                            }
                         }
                     }
                 }
@@ -134,64 +160,51 @@ namespace KeyPhraseMatcher
             }
         }
 
-        public static void SplitPhrasesToSearchesAndTitle(string inputFilePath, string searchesFilePath, string titlesFilePath, double splitRatio, out int searchesCount, out int titlesCount)
+        public void SplitPhrasesToSearchesAndTitle(string inputFilePath, string searchesFilePath, string titlesFilePath, double splitRatio, out int searchesCount, out int titlesCount)
         {
             searchesCount = 0;
             titlesCount = 0;
             var rnd = new Random();
 
-            using (var input = new FileStream(inputFilePath, FileMode.Open, FileAccess.Read))
-            using (var reader = new StreamReader(input))
             using (var searchesOutput = File.Create(searchesFilePath))
             using (var searchesWriter = new StreamWriter(searchesOutput))
             using (var titlesOutput = File.Create(titlesFilePath))
             using (var titlesWriter = new StreamWriter(titlesOutput))
             {
-                foreach (var line in GetLines(reader))
+                searchesWriter.WriteLine("");
+                titlesWriter.WriteLine("");
+            }
+
+            while (searchesCount < setSearchesCount || titlesCount < setTitlesCount)
+            {
+                using (var input = new FileStream(inputFilePath, FileMode.Open, FileAccess.Read))
+                using (var reader = new StreamReader(input))
+                using (var searchesOutput = new FileStream(searchesFilePath, FileMode.Append))
+                using (var searchesWriter = new StreamWriter(searchesOutput))
+                using (var titlesOutput = new FileStream(titlesFilePath, FileMode.Append))
+                using (var titlesWriter = new StreamWriter(titlesOutput))
                 {
-                    if (rnd.NextDouble() < splitRatio)
+                    foreach (var line in Extensions.GetLines(reader))
                     {
-                        foreach (var subSearchPhrase in GenerateSubPhrases(line))
+                        if (rnd.NextDouble() < splitRatio)
                         {
-                            searchesWriter.WriteLine(subSearchPhrase);
-                            searchesCount++;
+                            foreach (var subSearchPhrase in Extensions.GenerateSubPhrases(line))
+                            {
+                                searchesWriter.WriteLine(subSearchPhrase);
+                                searchesCount++;
+                            }
                         }
-                    }
-                    else
-                    {
-                        titlesWriter.WriteLine(line);
-                        foreach (var subSearchPhrase in GenerateSubPhrases(line))
+                        else
                         {
-                            titlesWriter.WriteLine(subSearchPhrase);
-                            titlesCount++;
+                            titlesWriter.WriteLine(line);
+                            foreach (var subSearchPhrase in Extensions.GenerateSubPhrases(line))
+                            {
+                                titlesWriter.WriteLine(subSearchPhrase);
+                                titlesCount++;
+                            }
                         }
                     }
                 }
-            }
-        }
-
-        public static IEnumerable<string> GenerateSubPhrases(string largerSearchPhrase)
-        {
-            var words = largerSearchPhrase.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-            for (int i = 0;  i < (int)(words.Length / 2); i++)
-            {
-                var rnd = new Random();
-                int n = rnd.Next(1, words.Length + 1);
-                string[] selectedWords = Enumerable.Range(0, n)
-                    .Select(j => words[rnd.Next(words.Length)])
-                    .ToArray();
-                yield return string.Join(" ", selectedWords);
-            }
-
-        }
-
-        public static IEnumerable<string> GetLines(StreamReader stream)
-        {
-            string line;
-            while ((line = stream.ReadLine()) != null)
-            {
-                yield return line;
             }
         }
     }
