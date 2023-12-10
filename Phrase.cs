@@ -10,14 +10,17 @@ namespace KeyPhraseMatcher
     {
         public Phrase(string phrase)
         {
-            Words = new HashSet<string>();
-
             foreach (var word in phrase.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
                 Words.Add(word);
             }
         }
 
-        public HashSet<string> Words { get; set; }
+        public HashSet<string> Words { get; set; } = new HashSet<string>();
+
+        public override string ToString()
+        {
+            return string.Join(" ", Words);
+        }
     }
 }

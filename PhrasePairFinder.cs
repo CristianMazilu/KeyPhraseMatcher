@@ -10,23 +10,16 @@ namespace KeyPhraseMatcher
     {
         public PhrasePairFinder(Stream searches, Stream titles)
         {
-            Words = new HashSet<string>();
-
-            using (var searchesReader = new StreamReader(searches))
             using (var titlesReader = new StreamReader(titles))
             {
                 foreach (var word in Extensions.GetWords(titlesReader))
                 {
-                    Words.Add(word);
-                }
-
-                foreach (var word in Extensions.GetWords(searchesReader))
-                {
-                    Words.Add(word);
+                    Keywords.Add(new Keyword(word));
                 }
             }
         }
 
-        public HashSet<string> Words { get; set; }
+        public List<Phrase> Searches { get; set; } = new List<Phrase>();
+        public HashSet<Keyword> Keywords { get; set; } = new HashSet<Keyword>();
     }
 }
