@@ -10,7 +10,7 @@ namespace KeyPhraseMatcher
     {
         public PhrasePairFinder(Stream searches, Stream titles)
         {
-            Words = new SortedSet<string>();
+            Words = new HashSet<string>();
 
             using (var searchesReader = new StreamReader(searches))
             using (var titlesReader = new StreamReader(titles))
@@ -27,6 +27,6 @@ namespace KeyPhraseMatcher
             }
         }
 
-        public SortedSet<string> Words { get; set; }
+        public HashSet<string> Words { get; set; }
     }
 }
