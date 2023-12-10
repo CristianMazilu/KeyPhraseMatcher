@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Reflection.PortableExecutable;
+using System.Diagnostics;
 
 namespace KeyPhraseMatcher
 {
@@ -14,8 +15,8 @@ namespace KeyPhraseMatcher
         private string aggregatedFilePath = Path.Combine(phrasesDirectory, "aggregated.txt");
         private string searchesFilePath = Path.Combine(phrasesDirectory, "searches.txt");
         private string titlesFilePath = Path.Combine(phrasesDirectory, "titles.txt");
-        private int setSearchesCount = 1000000;
-        private int setTitlesCount = 30000000;
+        private int setSearchesCount = 10000;
+        private int setTitlesCount = 300000;
 
         public static void Main(string[] args)
         {
@@ -70,7 +71,12 @@ namespace KeyPhraseMatcher
 
         private double FindPairsFast()
         {
-            throw new NotImplementedException();
+            var phrasePairFinder =
+                new PhrasePairFinder(
+                    new FileStream(searchesFilePath, FileMode.Open, FileAccess.Read),
+                    new FileStream(titlesFilePath, FileMode.Open, FileAccess.Read));
+
+            return (double)phrasePairFinder.MatchSearches();
         }
 
         public double FindPairsSlow()
@@ -91,15 +97,6 @@ namespace KeyPhraseMatcher
                             if (TitleContainsSearch(titleWords, searchWords))
                             {
                                 matchesCount++;
-                                Console.ForegroundColor = ConsoleColor.Green;
-                                Console.WriteLine($"Matching {search,-70} - {title}");
-                                Console.ResetColor();
-                            }
-                            else
-                            {
-                                Console.ForegroundColor = ConsoleColor.Red;
-                                Console.WriteLine($"Matching {search,-70} - {title}");
-                                Console.ResetColor();
                             }
                         }
                     }
@@ -171,8 +168,8 @@ namespace KeyPhraseMatcher
             using (var titlesOutput = File.Create(titlesFilePath))
             using (var titlesWriter = new StreamWriter(titlesOutput))
             {
-                searchesWriter.WriteLine("");
-                titlesWriter.WriteLine("");
+                searchesWriter.Write("");
+                titlesWriter.Write("");
             }
 
             while (searchesCount < setSearchesCount || titlesCount < setTitlesCount)

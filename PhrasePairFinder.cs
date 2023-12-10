@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.Tracing;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -9,7 +10,7 @@ namespace KeyPhraseMatcher
 {
     public class PhrasePairFinder
     {
-        private Dictionary<string, List<Phrase>> _keywords = new Dictionary<string, List<Phrase>>();
+        private Dictionary<string, HashSet<Phrase>> _keywords = new Dictionary<string, HashSet<Phrase>>();
 
         public PhrasePairFinder(Stream searches, Stream titles)
         {
@@ -36,7 +37,7 @@ namespace KeyPhraseMatcher
 
         public List<Phrase> Searches { get; set; } = new List<Phrase>();
 
-        public Dictionary<string, List<Phrase>> Keywords
+        public Dictionary<string, HashSet<Phrase>> Keywords
         {
             get { return _keywords; }
             set
@@ -48,11 +49,47 @@ namespace KeyPhraseMatcher
             }
         }
 
+        public int MatchSearches()
+        {
+            int totalCount = 0;
+            foreach (var search in Searches)
+            {
+                totalCount += MatchSearch(search);
+            }
+
+            return totalCount;
+        }
+
+        private int MatchSearch(Phrase search)
+        {
+            var titlesByKeyword = new List<HashSet<Phrase>>();
+            foreach (var word in search.Words)
+            {
+                if (Keywords.ContainsKey(word))
+                {
+                    titlesByKeyword.Add(Keywords[word]);
+                }
+            }
+
+            var commonTitles = titlesByKeyword
+                .Skip(1)
+                .Aggregate(
+                    new HashSet<Phrase>(titlesByKeyword.FirstOrDefault() ?? Enumerable.Empty<Phrase>()),
+                    (intersection, nextList) =>
+                    {
+                        intersection.IntersectWith(nextList);
+                        return intersection;
+                    }
+                );
+
+            return commonTitles.Count;
+        }
+
         private void AddToKeywords(string key, Phrase phrase)
         {
             if (!_keywords.ContainsKey(key))
             {
-                _keywords[key] = new List<Phrase> { phrase };
+                _keywords[key] = new HashSet<Phrase> { phrase };
             }
             else if (!_keywords[key].Contains(phrase))
             {
@@ -60,7 +97,7 @@ namespace KeyPhraseMatcher
             }
         }
 
-        private void AddToKeywords(string key, List<Phrase> phrases)
+        private void AddToKeywords(string key, HashSet<Phrase> phrases)
         {
             if (!_keywords.ContainsKey(key))
             {
@@ -68,7 +105,7 @@ namespace KeyPhraseMatcher
             }
             else
             {
-                _keywords[key] = _keywords[key].Union(phrases).ToList();
+                _keywords[key] = _keywords[key].Union(phrases).ToHashSet();
             }
         }
     }
